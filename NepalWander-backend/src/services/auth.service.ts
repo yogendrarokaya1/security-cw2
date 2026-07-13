@@ -47,7 +47,6 @@ const sendEmail = async (
       );
     }
   } else {
-    // Development — print OTP to terminal
     console.log("\n──────────────────────────────────────");
     console.log(`📧  To    : ${email}`);
     console.log(`👤  Name  : ${firstName}`);
@@ -59,7 +58,7 @@ const sendEmail = async (
 
 class AuthService {
 
-  // ── REGISTER ─────────────────────────────────────────
+  // ── REGISTER ──────────────────────────────────────────
   async register(input: RegisterInput) {
     const {
       firstName,
@@ -69,15 +68,12 @@ class AuthService {
       nationality,
     } = input;
 
-    // Default to tourist if no role given
     const role = (input.role as UserRole) || UserRole.TOURIST;
 
-    // Block admin registration via API
     if (role === UserRole.ADMIN) {
       throw new BadRequestError("Invalid role");
     }
 
-    // Only these roles allowed
     const allowed = [
       UserRole.TOURIST,
       UserRole.GUIDE,
@@ -87,25 +83,19 @@ class AuthService {
       throw new BadRequestError("Invalid role selected");
     }
 
-    // Check duplicate email
     const existing = await userRepository.findByEmail(email);
     if (existing) {
       throw new ConflictError("Email is already registered");
     }
 
-    // Hash password
     const hashed = await hashPassword(password);
-
-    // Generate OTP
     const { otp, otpExpires } = generateOtp();
 
-    // Tourist = auto approved, guide/operator = pending
     const accountStatus =
       role === UserRole.TOURIST
         ? AccountStatus.APPROVED
         : AccountStatus.PENDING;
 
-    // Create user
     await userRepository.create({
       firstName,
       lastName,
@@ -118,9 +108,9 @@ class AuthService {
       isActive: true,
       otp,
       otpExpires,
+      passwordHistory: [hashed],
     });
 
-    // Send OTP email or print to terminal in dev
     await sendEmail("verification", email, firstName, otp);
 
     const message =
@@ -135,7 +125,8 @@ class AuthService {
   async verifyOtp(input: VerifyOtpInput) {
     const { email, otp } = input;
 
-    const user = await userRepository.findByEmailWithOtp(email);
+    const user =
+      await userRepository.findByEmailWithOtp(email);
     if (!user) throw new NotFoundError("User not found");
 
     if (user.isVerified) {
@@ -211,6 +202,7 @@ class AuthService {
     };
   }
 
+  // ── LOGIN ─────────────────────────────────────────────
   async login(input: LoginInput) {
     const { email, password } = input;
 
@@ -220,13 +212,54 @@ class AuthService {
       throw new UnauthorizedError("Invalid email or password");
     }
 
+    // ── Check if account is locked ────────────────────
+    const now = new Date();
+    if (user.lockUntil && user.lockUntil > now) {
+      const minutesLeft = Math.ceil(
+        (user.lockUntil.getTime() - now.getTime()) / 60000
+      );
+      throw new ForbiddenError(
+        `Account locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`
+      );
+    }
+
     const isMatch = await comparePassword(
       password,
       user.password
     );
+
     if (!isMatch) {
-      throw new UnauthorizedError("Invalid email or password");
+      // ── Increment failed attempts ─────────────────
+      const attempts = (user.failedLoginAttempts || 0) + 1;
+      const MAX_ATTEMPTS = 5;
+      const LOCK_DURATION_MS = 30 * 60 * 1000;
+
+      if (attempts >= MAX_ATTEMPTS) {
+        await userRepository.updateLoginLock(
+          user._id.toString(),
+          attempts,
+          new Date(Date.now() + LOCK_DURATION_MS)
+        );
+        throw new ForbiddenError(
+          "Too many failed attempts. Account locked for 30 minutes."
+        );
+      }
+
+      await userRepository.updateLoginLock(
+        user._id.toString(),
+        attempts,
+        null
+      );
+
+      throw new UnauthorizedError(
+        "Invalid email or password"
+      );
     }
+
+    // ── Successful — reset lockout ────────────────────
+    await userRepository.resetLoginLock(
+      user._id.toString()
+    );
 
     if (!user.isVerified) {
       throw new BadRequestError(
@@ -289,11 +322,13 @@ class AuthService {
     };
   }
 
+  // ── FORGOT PASSWORD ───────────────────────────────────
   async forgotPassword(input: ForgotPasswordInput) {
-    const user = await userRepository.findByEmail(input.email);
+    const user = await userRepository.findByEmail(
+      input.email
+    );
 
     if (!user) {
-      // Never reveal if email exists
       return {
         message:
           "If this email exists, a reset OTP has been sent.",
@@ -301,9 +336,12 @@ class AuthService {
     }
 
     const { otp, otpExpires } = generateOtp();
-    await userRepository.saveOtp(input.email, otp, otpExpires);
+    await userRepository.saveOtp(
+      input.email,
+      otp,
+      otpExpires
+    );
 
-    // Send reset email or print to terminal in dev
     await sendEmail(
       "reset",
       input.email,
@@ -311,23 +349,46 @@ class AuthService {
       otp
     );
 
-    return { message: "Password reset OTP sent to your email." };
+    return {
+      message: "Password reset OTP sent to your email.",
+    };
   }
 
+  // ── RESET PASSWORD ────────────────────────────────────
   async resetPassword(input: ResetPasswordInput) {
     const { email, otp, newPassword } = input;
 
-    const user = await userRepository.findByEmailWithOtp(email);
+    const user =
+      await userRepository.findByEmailWithOtp(email);
     if (!user) throw new NotFoundError("User not found");
 
     if (user.otp !== otp) {
       throw new BadRequestError("Invalid OTP");
     }
 
-    if (!user.otpExpires || user.otpExpires < new Date()) {
+    if (
+      !user.otpExpires ||
+      user.otpExpires < new Date()
+    ) {
       throw new BadRequestError(
         "OTP expired. Please request a new one."
       );
+    }
+
+    // ── Password reuse prevention ─────────────────────
+    const history = await userRepository.getPasswordHistory(
+      user._id.toString()
+    );
+    for (const oldHash of history) {
+      const isReused = await comparePassword(
+        newPassword,
+        oldHash
+      );
+      if (isReused) {
+        throw new BadRequestError(
+          "You cannot reuse a recent password. Please choose a different one."
+        );
+      }
     }
 
     const hashed = await hashPassword(newPassword);
@@ -338,54 +399,73 @@ class AuthService {
       otpExpires: undefined,
     });
 
+    await userRepository.addToPasswordHistory(
+      user._id.toString(),
+      hashed
+    );
+
     return { message: "Password reset successfully." };
   }
 
+  // ── RESEND OTP ────────────────────────────────────────
   async resendOtp(email: string) {
     const user = await userRepository.findByEmail(email);
     if (!user) throw new NotFoundError("User not found");
 
     if (user.isVerified) {
-      throw new BadRequestError("Email is already verified");
+      throw new BadRequestError(
+        "Email is already verified"
+      );
     }
 
     const { otp, otpExpires } = generateOtp();
     await userRepository.saveOtp(email, otp, otpExpires);
 
-    // Send OTP email or print to terminal in dev
     await sendEmail("resend", email, user.firstName, otp);
 
     return { message: "New OTP sent to your email." };
   }
 
-  // Add this method to AuthService class in auth.service.ts
+  // ── UPDATE PROFILE ────────────────────────────────────
+  async updateProfile(
+    userId: string,
+    input: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      nationality?: string;
+      profileImage?: string;
+    }
+  ) {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError("User not found");
 
-async updateProfile(userId: string, input: {
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  nationality?: string;
-  profileImage?: string;
-}) {
-  const user = await userRepository.findById(userId);
-  if (!user) throw new NotFoundError("User not found");
+    const updated = await userRepository.update(userId, {
+      ...(input.firstName && {
+        firstName: input.firstName,
+      }),
+      ...(input.lastName && { lastName: input.lastName }),
+      ...(input.phone !== undefined && {
+        phone: input.phone,
+      }),
+      ...(input.nationality !== undefined && {
+        nationality: input.nationality,
+      }),
+      ...(input.profileImage !== undefined && {
+        profileImage: input.profileImage,
+      }),
+    });
 
-  const updated = await userRepository.update(userId, {
-    ...(input.firstName && { firstName: input.firstName }),
-    ...(input.lastName && { lastName: input.lastName }),
-    ...(input.phone !== undefined && { phone: input.phone }),
-    ...(input.nationality !== undefined && { nationality: input.nationality }),
-    ...(input.profileImage !== undefined && { profileImage: input.profileImage }),
-  });
+    return updated;
+  }
 
-  return updated;
-}
-
+  // ── LOGOUT ────────────────────────────────────────────
   async logout(userId: string) {
     await userRepository.clearRefreshToken(userId);
     return { message: "Logged out successfully." };
   }
 
+  // ── GET ME ────────────────────────────────────────────
   async getMe(userId: string) {
     const user = await userRepository.findById(userId);
     if (!user) throw new NotFoundError("User not found");
