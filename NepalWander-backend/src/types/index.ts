@@ -32,6 +32,13 @@ export interface IUser {
   refreshToken?: string;
   createdAt?: Date;
   updatedAt?: Date;
+
+  // ── Brute-force / account lockout ─────────────────
+  failedLoginAttempts?: number;
+  lockUntil?: Date | null;
+
+  // ── Password history ──────────────────────────────
+  passwordHistory?: string[];
 }
 
 export interface AuthRequest extends Request {
