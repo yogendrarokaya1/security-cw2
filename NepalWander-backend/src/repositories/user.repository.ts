@@ -13,7 +13,9 @@ export class UserRepository {
     return UserModel.findById(id);
   }
 
-  async findByEmail(email: string): Promise<UserDocument | null> {
+  async findByEmail(
+    email: string
+  ): Promise<UserDocument | null> {
     return UserModel.findOne({ email });
   }
 
@@ -21,7 +23,7 @@ export class UserRepository {
     email: string
   ): Promise<UserDocument | null> {
     return UserModel.findOne({ email }).select(
-      "+password +refreshToken"
+      "+password +refreshToken +failedLoginAttempts +lockUntil"
     );
   }
 
@@ -60,26 +62,24 @@ export class UserRepository {
     id: string,
     token: string
   ): Promise<void> {
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $set: { refreshToken: token } }
-    );
+    await UserModel.findByIdAndUpdate(id, {
+      $set: { refreshToken: token },
+    });
   }
 
   async clearRefreshToken(id: string): Promise<void> {
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $unset: { refreshToken: 1 } }
-    );
+    await UserModel.findByIdAndUpdate(id, {
+      $unset: { refreshToken: 1 },
+    });
   }
 
   async findAll(): Promise<UserDocument[]> {
     return UserModel.find().sort({ createdAt: -1 });
   }
 
-  // ← new methods below
-
-  async findByRole(role: UserRole): Promise<UserDocument[]> {
+  async findByRole(
+    role: UserRole
+  ): Promise<UserDocument[]> {
     return UserModel.find({ role }).sort({ createdAt: -1 });
   }
 
@@ -95,5 +95,53 @@ export class UserRepository {
     if (!mongoose.Types.ObjectId.isValid(id)) return false;
     const result = await UserModel.findByIdAndDelete(id);
     return !!result;
+  }
+
+  // ── Brute-force lockout methods ───────────────────────
+  async updateLoginLock(
+    id: string,
+    attempts: number,
+    lockUntil: Date | null
+  ): Promise<void> {
+    await UserModel.findByIdAndUpdate(id, {
+      $set: {
+        failedLoginAttempts: attempts,
+        lockUntil: lockUntil,
+      },
+    });
+  }
+
+  async resetLoginLock(id: string): Promise<void> {
+    await UserModel.findByIdAndUpdate(id, {
+      $set: {
+        failedLoginAttempts: 0,
+        lockUntil: null,
+      },
+    });
+  }
+
+  // ── Password history methods ──────────────────────────
+  async getPasswordHistory(
+    id: string
+  ): Promise<string[]> {
+    const user = await UserModel.findById(id).select(
+      "+passwordHistory"
+    );
+    return user?.passwordHistory ?? [];
+  }
+
+  async addToPasswordHistory(
+    id: string,
+    hashedPassword: string
+  ): Promise<void> {
+    // Keep last 5 passwords only
+    await UserModel.findByIdAndUpdate(id, {
+      $push: {
+        passwordHistory: {
+          $each: [hashedPassword],
+          $slice: -5,
+        },
+      },
+    });
   }
 }
