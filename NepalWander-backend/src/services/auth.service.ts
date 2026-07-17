@@ -22,6 +22,7 @@ import {
   ForbiddenError,
 } from "../middlewares/error.middleware";
 import { ENV } from "../config/env";
+import { logAuth, logSecurity } from "../utils/logger.util";
 
 const userRepository = new UserRepository();
 
@@ -112,6 +113,13 @@ class AuthService {
     });
 
     await sendEmail("verification", email, firstName, otp);
+
+    // ── Log registration event ────────────────────────
+    logAuth("REGISTER", {
+      email,
+      role,
+      success: true,
+    });
 
     const message =
       role === UserRole.TOURIST
@@ -229,7 +237,6 @@ class AuthService {
     );
 
     if (!isMatch) {
-      // ── Increment failed attempts ─────────────────
       const attempts = (user.failedLoginAttempts || 0) + 1;
       const MAX_ATTEMPTS = 5;
       const LOCK_DURATION_MS = 30 * 60 * 1000;
@@ -240,6 +247,13 @@ class AuthService {
           attempts,
           new Date(Date.now() + LOCK_DURATION_MS)
         );
+
+        // ── Log account locked event ──────────────────
+        logSecurity("ACCOUNT_LOCKED", {
+          email,
+          reason: "Account locked after 5 failed login attempts",
+        });
+
         throw new ForbiddenError(
           "Too many failed attempts. Account locked for 30 minutes."
         );
@@ -250,6 +264,12 @@ class AuthService {
         attempts,
         null
       );
+
+      // ── Log failed login attempt ──────────────────
+      logSecurity("FAILED_LOGIN", {
+        email,
+        reason: `Failed attempt ${attempts} of 5`,
+      });
 
       throw new UnauthorizedError(
         "Invalid email or password"
@@ -305,6 +325,14 @@ class AuthService {
       user._id.toString(),
       refreshToken
     );
+
+    // ── Log successful login ──────────────────────────
+    logAuth("LOGIN_SUCCESS", {
+      userId: user._id.toString(),
+      email,
+      role: user.role,
+      success: true,
+    });
 
     return {
       accessToken,
@@ -462,6 +490,13 @@ class AuthService {
   // ── LOGOUT ────────────────────────────────────────────
   async logout(userId: string) {
     await userRepository.clearRefreshToken(userId);
+
+    // ── Log logout event ──────────────────────────────
+    logAuth("LOGOUT", {
+      userId,
+      success: true,
+    });
+
     return { message: "Logged out successfully." };
   }
 
