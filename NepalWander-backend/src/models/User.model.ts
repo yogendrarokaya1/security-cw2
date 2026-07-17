@@ -70,6 +70,12 @@ const UserSchema = new Schema<UserDocument>(
       select: false,
     },
 
+    // ── Password expiry ───────────────────────────────
+    passwordChangedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
     // ── MFA (TOTP) ────────────────────────────────────
     mfaEnabled: {
       type: Boolean,
