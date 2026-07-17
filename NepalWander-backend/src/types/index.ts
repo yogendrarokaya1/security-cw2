@@ -40,9 +40,11 @@ export interface IUser {
   mfaTempSecret?: string;
   googleId?: string;
   authProvider?: "local" | "google";
+
+  // ── Password expiry ───────────────────────────────
+  passwordChangedAt?: Date;
 }
 
-// ── Use a custom request that avoids Passport conflict ──
 export interface AuthRequest extends Request {
   user?: any;
 }
