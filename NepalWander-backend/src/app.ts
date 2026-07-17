@@ -5,8 +5,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
-import mongoSanitize from "express-mongo-sanitize";
-import session from "express-session";
+import { mongoSanitizeMiddleware } from "./middlewares/sanitize.middleware";import session from "express-session";
 import passport from "./config/passport";
 import routes from "./routes";
 import {
@@ -78,7 +77,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ── NoSQL injection sanitization ──────────────────────
-app.use(mongoSanitize());
+app.use(mongoSanitizeMiddleware);
 
 // ── Session (required for passport OAuth) ────────────
 app.use(
