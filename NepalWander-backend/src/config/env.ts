@@ -14,8 +14,19 @@ export const ENV = {
   EMAIL_USER: process.env.EMAIL_USER as string,
   EMAIL_PASS: process.env.EMAIL_PASS as string,
   CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
-
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME!,
-CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY!,
-CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET!,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY!,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET!,
+
+  // ── Google OAuth ──────────────────────────────────
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID as string,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET as string,
+  GOOGLE_CALLBACK_URL:
+    process.env.GOOGLE_CALLBACK_URL ||
+    "http://localhost:5000/api/v1/auth/google/callback",
+
+  // ── Session ───────────────────────────────────────
+  SESSION_SECRET:
+    process.env.SESSION_SECRET ||
+    "nepalwander_session_secret_change_in_production",
 };
