@@ -1,15 +1,18 @@
 import { z } from "zod";
+import xss from "xss";
 
 export const registerSchema = z.object({
   firstName: z
     .string()
     .min(2, "First name must be at least 2 characters")
-    .trim(),
+    .trim()
+    .transform(val => xss(val)),
 
   lastName: z
     .string()
     .min(2, "Last name must be at least 2 characters")
-    .trim(),
+    .trim()
+    .transform(val => xss(val)),
 
   email: z
     .string()
@@ -33,6 +36,7 @@ export const registerSchema = z.object({
     .string()
     .min(2, "Nationality must be valid")
     .trim()
+    .transform(val => xss(val))
     .optional(),
 });
 
@@ -90,16 +94,27 @@ export const resetPasswordSchema = z.object({
     ),
 });
 
-
-
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters").trim().optional(),
-  lastName: z.string().min(2, "Last name must be at least 2 characters").trim().optional(),
+  firstName: z
+    .string()
+    .min(2, "First name must be at least 2 characters")
+    .trim()
+    .transform(val => xss(val))
+    .optional(),
+  lastName: z
+    .string()
+    .min(2, "Last name must be at least 2 characters")
+    .trim()
+    .transform(val => xss(val))
+    .optional(),
   phone: z.string().optional(),
-  nationality: z.string().optional(),
+  nationality: z
+    .string()
+    .trim()
+    .transform(val => xss(val))
+    .optional(),
   profileImage: z.string().optional(),
 });
-
 
 export const resendOtpSchema = z.object({
   email: z
