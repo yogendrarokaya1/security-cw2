@@ -63,7 +63,7 @@ const UserSchema = new Schema<UserDocument>(
       select: false,
     },
 
-    // ── Password history (reuse prevention) ───────────
+    // ── Password history ──────────────────────────────
     passwordHistory: {
       type: [String],
       default: [],
@@ -83,6 +83,18 @@ const UserSchema = new Schema<UserDocument>(
       type: String,
       select: false,
     },
+
+    // ── OAuth ─────────────────────────────────────────
+    googleId: {
+      type: String,
+      sparse: true,
+      select: false,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
+    },
   },
   { timestamps: true }
 );
@@ -98,6 +110,7 @@ UserSchema.methods.toJSON = function () {
   delete user.passwordHistory;
   delete user.mfaSecret;
   delete user.mfaTempSecret;
+  delete user.googleId;
   delete user.__v;
   return user;
 };
