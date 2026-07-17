@@ -32,29 +32,19 @@ export interface IUser {
   refreshToken?: string;
   createdAt?: Date;
   updatedAt?: Date;
-
-  // ── Brute-force / account lockout ─────────────────
   failedLoginAttempts?: number;
   lockUntil?: Date | null;
-
-  // ── Password history ──────────────────────────────
   passwordHistory?: string[];
-
-  // ── MFA (TOTP) ────────────────────────────────────
   mfaSecret?: string;
   mfaEnabled?: boolean;
   mfaTempSecret?: string;
-
-  // ── OAuth ─────────────────────────────────────────
   googleId?: string;
   authProvider?: "local" | "google";
 }
 
+// ── Use a custom request that avoids Passport conflict ──
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    role: UserRole;
-  };
+  user?: any;
 }
 
 export interface JwtPayload {
