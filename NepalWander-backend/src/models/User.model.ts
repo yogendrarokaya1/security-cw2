@@ -35,7 +35,7 @@ const UserSchema = new Schema<UserDocument>(
     },
     isSuperAdmin: {
       type: Boolean,
-      default: false,           
+      default: false,
     },
     accountStatus: {
       type: String,
@@ -50,6 +50,25 @@ const UserSchema = new Schema<UserDocument>(
     otp: { type: String, select: false },
     otpExpires: { type: Date, select: false },
     refreshToken: { type: String, select: false },
+
+    // ── Brute-force / account lockout ─────────────────
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    lockUntil: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    // ── Password history (reuse prevention) ───────────
+    passwordHistory: {
+      type: [String],
+      default: [],
+      select: false,
+    },
   },
   { timestamps: true }
 );
@@ -60,8 +79,14 @@ UserSchema.methods.toJSON = function () {
   delete user.otp;
   delete user.otpExpires;
   delete user.refreshToken;
+  delete user.failedLoginAttempts;
+  delete user.lockUntil;
+  delete user.passwordHistory;
   delete user.__v;
   return user;
 };
 
-export const UserModel = mongoose.model<UserDocument>("User", UserSchema);
+export const UserModel = mongoose.model<UserDocument>(
+  "User",
+  UserSchema
+);
