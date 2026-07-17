@@ -39,6 +39,11 @@ export interface IUser {
 
   // ── Password history ──────────────────────────────
   passwordHistory?: string[];
+
+  // ── MFA (TOTP) ────────────────────────────────────
+  mfaSecret?: string;
+  mfaEnabled?: boolean;
+  mfaTempSecret?: string;
 }
 
 export interface AuthRequest extends Request {
