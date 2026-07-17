@@ -69,6 +69,20 @@ const UserSchema = new Schema<UserDocument>(
       default: [],
       select: false,
     },
+
+    // ── MFA (TOTP) ────────────────────────────────────
+    mfaEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    mfaSecret: {
+      type: String,
+      select: false,
+    },
+    mfaTempSecret: {
+      type: String,
+      select: false,
+    },
   },
   { timestamps: true }
 );
@@ -82,6 +96,8 @@ UserSchema.methods.toJSON = function () {
   delete user.failedLoginAttempts;
   delete user.lockUntil;
   delete user.passwordHistory;
+  delete user.mfaSecret;
+  delete user.mfaTempSecret;
   delete user.__v;
   return user;
 };
