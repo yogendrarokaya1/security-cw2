@@ -1,4 +1,5 @@
 import passport from "passport";
+// @ts-ignore
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { UserModel } from "../models/User.model";
 import { ENV } from "./env";
@@ -6,6 +7,7 @@ import { UserRole, AccountStatus } from "../types";
 import { logAuth } from "../utils/logger.util";
 
 passport.use(
+  // @ts-ignore
   new GoogleStrategy(
     {
       clientID: ENV.GOOGLE_CLIENT_ID,
@@ -13,30 +15,26 @@ passport.use(
       callbackURL: ENV.GOOGLE_CALLBACK_URL,
     },
     async (
-      _accessToken,
-      _refreshToken,
-      profile,
-      done
+      _accessToken: string,
+      _refreshToken: string,
+      profile: any,
+      done: any
     ) => {
       try {
         const email = profile.emails?.[0]?.value;
 
         if (!email) {
           return done(
-            new Error(
-              "No email found in Google profile"
-            ),
-            undefined
+            new Error("No email found in Google profile"),
+            false
           );
         }
 
-        // Check if user already exists
         let user = await UserModel.findOne({
           $or: [{ googleId: profile.id }, { email }],
         });
 
         if (user) {
-          // Link googleId if user registered locally
           if (!user.googleId) {
             user.googleId = profile.id;
             user.authProvider = "google";
@@ -52,12 +50,9 @@ passport.use(
           return done(null, user);
         }
 
-        // Create new user from Google profile
         const newUser = await UserModel.create({
-          firstName:
-            profile.name?.givenName || "Google",
-          lastName:
-            profile.name?.familyName || "User",
+          firstName: profile.name?.givenName || "Google",
+          lastName: profile.name?.familyName || "User",
           email,
           password: `google_oauth_${profile.id}_${Date.now()}`,
           googleId: profile.id,
@@ -77,17 +72,19 @@ passport.use(
 
         return done(null, newUser);
       } catch (error) {
-        return done(error as Error, undefined);
+        return done(error, false);
       }
     }
   )
 );
 
-passport.serializeUser((user: any, done) => {
-  done(null, user._id);
+// @ts-ignore
+passport.serializeUser((user: any, done: any) => {
+  done(null, user._id.toString());
 });
 
-passport.deserializeUser(async (id: string, done) => {
+// @ts-ignore
+passport.deserializeUser(async (id: string, done: any) => {
   try {
     const user = await UserModel.findById(id);
     done(null, user);
