@@ -19,6 +19,10 @@ import {
   updateProfileSchema,
 } from "../validators/auth.validator";
 import { UserRepository } from "../repositories/user.repository";
+import {
+  csrfProtection,
+  sendCsrfToken,
+} from "../middlewares/csrf.middleware";
 
 const router = Router();
 const userRepository = new UserRepository();
@@ -95,6 +99,13 @@ router.post(
   authController.resendOtp
 );
 
+// ── CSRF token endpoint ───────────────────────────────
+router.get(
+  "/csrf-token",
+  csrfProtection,
+  sendCsrfToken
+);
+
 // ── Protected routes ──────────────────────────────────
 router.post("/logout", protect, authController.logout);
 router.get("/me", protect, authController.getMe);
@@ -106,7 +117,6 @@ router.put(
 );
 
 // ── Google OAuth routes ───────────────────────────────
-// Step 1: Redirect to Google
 router.get(
   "/google",
   passport.authenticate("google", {
@@ -114,7 +124,6 @@ router.get(
   })
 );
 
-// Step 2: Google callback
 router.get(
   "/google/callback",
   passport.authenticate("google", {
@@ -135,13 +144,11 @@ router.get(
         role: user.role,
       });
 
-      // Save refresh token to database
       await userRepository.saveRefreshToken(
         user._id.toString(),
         refreshToken
       );
 
-      // Set refresh token in httpOnly cookie
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: ENV.NODE_ENV === "production",
@@ -149,7 +156,6 @@ router.get(
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
 
-      // Redirect frontend with access token
       res.redirect(
         `${ENV.CLIENT_URL}/oauth/callback?token=${accessToken}&provider=google`
       );
