@@ -18,10 +18,36 @@ import { ENV } from "./config/env";
 
 const app: Application = express();
 
-// ── Security headers ──────────────────────────────────
-app.use(helmet());
+// ── Security headers + CSP ────────────────────────────
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://res.cloudinary.com",
+        ],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+  })
+);
 
-// ── CORS ─────────────────────────────────────────────
+// ── CORS ──────────────────────────────────────────────
 app.use(
   cors({
     origin: ENV.CLIENT_URL,
