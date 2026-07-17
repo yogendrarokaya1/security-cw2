@@ -44,6 +44,10 @@ export interface IUser {
   mfaSecret?: string;
   mfaEnabled?: boolean;
   mfaTempSecret?: string;
+
+  // ── OAuth ─────────────────────────────────────────
+  googleId?: string;
+  authProvider?: "local" | "google";
 }
 
 export interface AuthRequest extends Request {
@@ -58,7 +62,6 @@ export interface JwtPayload {
   role: UserRole;
 }
 
-// Input types now come from Zod schemas
 export type {
   RegisterInput,
   LoginInput,
