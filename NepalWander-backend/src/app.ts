@@ -5,20 +5,48 @@ import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
-import mongoSanitize from "express-mongo-sanitize";
+import { mongoSanitizeMiddleware } from "./middlewares/sanitize.middleware";import session from "express-session";
+import passport from "./config/passport";
 import routes from "./routes";
 import {
   errorHandler,
   notFound,
 } from "./middlewares/error.middleware";
+import { csrfErrorHandler } from "./middlewares/csrf.middleware";
 import { ENV } from "./config/env";
 
 const app: Application = express();
 
-// ── Security headers ──────────────────────────────────
-app.use(helmet());
+// ── Security headers + CSP ────────────────────────────
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://res.cloudinary.com",
+        ],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+  })
+);
 
-// ── CORS ─────────────────────────────────────────────
+// ── CORS ──────────────────────────────────────────────
 app.use(
   cors({
     origin: ENV.CLIENT_URL,
@@ -31,13 +59,14 @@ app.use(
 // ── Global rate limit (all routes) ───────────────────
 app.use(
   rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
       success: false,
-      message: "Too many requests. Try again after 15 minutes.",
+      message:
+        "Too many requests. Try again after 15 minutes.",
     },
   })
 );
@@ -48,7 +77,26 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ── NoSQL injection sanitization ──────────────────────
-app.use(mongoSanitize());
+app.use(mongoSanitizeMiddleware);
+
+// ── Session (required for passport OAuth) ────────────
+app.use(
+  session({
+    secret: ENV.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: ENV.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
+
+// ── Passport OAuth ────────────────────────────────────
+app.use(passport.initialize());
+app.use(passport.session());
 
 // ── HTTP request logging ──────────────────────────────
 if (ENV.NODE_ENV !== "test") {
@@ -64,6 +112,9 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/v1", routes);
+
+// ── CSRF error handler ────────────────────────────────
+app.use(csrfErrorHandler);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -7,7 +7,7 @@ import bookingRoutes from "./booking.routes";
 import guideRoutes from "./guide.routes";
 import plannerRoutes from "./planner.routes";
 import uploadRoutes from "./upload.routes";
-
+import mfaRoutes from "./mfa.routes";
 
 const router = Router();
 
@@ -20,5 +20,6 @@ router.use("/packages", packageRoutes);
 router.use("/bookings", bookingRoutes);
 router.use("/guides", guideRoutes);
 router.use("/planner", plannerRoutes);
+router.use("/mfa", mfaRoutes);
 
 export default router;

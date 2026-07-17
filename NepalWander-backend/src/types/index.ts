@@ -32,20 +32,21 @@ export interface IUser {
   refreshToken?: string;
   createdAt?: Date;
   updatedAt?: Date;
-
-  // ── Brute-force / account lockout ─────────────────
   failedLoginAttempts?: number;
   lockUntil?: Date | null;
-
-  // ── Password history ──────────────────────────────
   passwordHistory?: string[];
+  mfaSecret?: string;
+  mfaEnabled?: boolean;
+  mfaTempSecret?: string;
+  googleId?: string;
+  authProvider?: "local" | "google";
+
+  // ── Password expiry ───────────────────────────────
+  passwordChangedAt?: Date;
 }
 
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    role: UserRole;
-  };
+  user?: any;
 }
 
 export interface JwtPayload {
@@ -53,7 +54,6 @@ export interface JwtPayload {
   role: UserRole;
 }
 
-// Input types now come from Zod schemas
 export type {
   RegisterInput,
   LoginInput,

@@ -63,11 +63,43 @@ const UserSchema = new Schema<UserDocument>(
       select: false,
     },
 
-    // ── Password history (reuse prevention) ───────────
+    // ── Password history ──────────────────────────────
     passwordHistory: {
       type: [String],
       default: [],
       select: false,
+    },
+
+    // ── Password expiry ───────────────────────────────
+    passwordChangedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // ── MFA (TOTP) ────────────────────────────────────
+    mfaEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    mfaSecret: {
+      type: String,
+      select: false,
+    },
+    mfaTempSecret: {
+      type: String,
+      select: false,
+    },
+
+    // ── OAuth ─────────────────────────────────────────
+    googleId: {
+      type: String,
+      sparse: true,
+      select: false,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
     },
   },
   { timestamps: true }
@@ -82,6 +114,9 @@ UserSchema.methods.toJSON = function () {
   delete user.failedLoginAttempts;
   delete user.lockUntil;
   delete user.passwordHistory;
+  delete user.mfaSecret;
+  delete user.mfaTempSecret;
+  delete user.googleId;
   delete user.__v;
   return user;
 };

@@ -23,7 +23,7 @@ export class UserRepository {
     email: string
   ): Promise<UserDocument | null> {
     return UserModel.findOne({ email }).select(
-      "+password +refreshToken +failedLoginAttempts +lockUntil"
+      "+password +refreshToken +failedLoginAttempts +lockUntil +mfaEnabled +mfaSecret"
     );
   }
 
@@ -134,7 +134,6 @@ export class UserRepository {
     id: string,
     hashedPassword: string
   ): Promise<void> {
-    // Keep last 5 passwords only
     await UserModel.findByIdAndUpdate(id, {
       $push: {
         passwordHistory: {
@@ -143,5 +142,55 @@ export class UserRepository {
         },
       },
     });
+  }
+
+  // ── MFA methods ───────────────────────────────────────
+  async saveMfaTempSecret(
+    id: string,
+    tempSecret: string
+  ): Promise<void> {
+    await UserModel.findByIdAndUpdate(id, {
+      $set: { mfaTempSecret: tempSecret },
+    });
+  }
+
+  async enableMfa(
+    id: string,
+    secret: string
+  ): Promise<void> {
+    await UserModel.findByIdAndUpdate(id, {
+      $set: {
+        mfaEnabled: true,
+        mfaSecret: secret,
+        mfaTempSecret: undefined,
+      },
+    });
+  }
+
+  async disableMfa(id: string): Promise<void> {
+    await UserModel.findByIdAndUpdate(id, {
+      $set: {
+        mfaEnabled: false,
+        mfaSecret: undefined,
+        mfaTempSecret: undefined,
+      },
+    });
+  }
+
+  async findByIdWithMfa(
+    id: string
+  ): Promise<UserDocument | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    return UserModel.findById(id).select(
+      "+mfaSecret +mfaTempSecret +mfaEnabled"
+    );
+  }
+
+  async findByEmailWithMfa(
+    email: string
+  ): Promise<UserDocument | null> {
+    return UserModel.findOne({ email }).select(
+      "+password +refreshToken +failedLoginAttempts +lockUntil +mfaSecret +mfaEnabled"
+    );
   }
 }

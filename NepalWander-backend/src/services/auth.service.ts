@@ -26,6 +26,8 @@ import { logAuth, logSecurity } from "../utils/logger.util";
 
 const userRepository = new UserRepository();
 
+const PASSWORD_EXPIRY_DAYS = 90;
+
 // ── Helper: send email or log OTP in development ──────
 const sendEmail = async (
   type: "verification" | "reset" | "resend",
@@ -110,11 +112,11 @@ class AuthService {
       otp,
       otpExpires,
       passwordHistory: [hashed],
+      passwordChangedAt: new Date(),
     });
 
     await sendEmail("verification", email, firstName, otp);
 
-    // ── Log registration event ────────────────────────
     logAuth("REGISTER", {
       email,
       role,
@@ -133,8 +135,7 @@ class AuthService {
   async verifyOtp(input: VerifyOtpInput) {
     const { email, otp } = input;
 
-    const user =
-      await userRepository.findByEmailWithOtp(email);
+    const user = await userRepository.findByEmailWithOtp(email);
     if (!user) throw new NotFoundError("User not found");
 
     if (user.isVerified) {
@@ -238,7 +239,7 @@ class AuthService {
 
     if (!isMatch) {
       const attempts = (user.failedLoginAttempts || 0) + 1;
-      const MAX_ATTEMPTS = 5;
+      const MAX_ATTEMPTS = 10;
       const LOCK_DURATION_MS = 30 * 60 * 1000;
 
       if (attempts >= MAX_ATTEMPTS) {
@@ -248,10 +249,9 @@ class AuthService {
           new Date(Date.now() + LOCK_DURATION_MS)
         );
 
-        // ── Log account locked event ──────────────────
         logSecurity("ACCOUNT_LOCKED", {
           email,
-          reason: "Account locked after 5 failed login attempts",
+          reason: "Account locked after 10 failed login attempts",
         });
 
         throw new ForbiddenError(
@@ -265,21 +265,16 @@ class AuthService {
         null
       );
 
-      // ── Log failed login attempt ──────────────────
       logSecurity("FAILED_LOGIN", {
         email,
-        reason: `Failed attempt ${attempts} of 5`,
+        reason: `Failed attempt ${attempts} of 10`,
       });
 
-      throw new UnauthorizedError(
-        "Invalid email or password"
-      );
+      throw new UnauthorizedError("Invalid email or password");
     }
 
     // ── Successful — reset lockout ────────────────────
-    await userRepository.resetLoginLock(
-      user._id.toString()
-    );
+    await userRepository.resetLoginLock(user._id.toString());
 
     if (!user.isVerified) {
       throw new BadRequestError(
@@ -312,6 +307,16 @@ class AuthService {
       );
     }
 
+    // ── Check password expiry (90 days) ───────────────
+    const passwordExpired = (() => {
+      if (!user.passwordChangedAt) return false;
+      const daysSinceChange = Math.floor(
+        (Date.now() - user.passwordChangedAt.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+      return daysSinceChange >= PASSWORD_EXPIRY_DAYS;
+    })();
+
     const accessToken = generateAccessToken({
       id: user._id.toString(),
       role: user.role,
@@ -326,7 +331,6 @@ class AuthService {
       refreshToken
     );
 
-    // ── Log successful login ──────────────────────────
     logAuth("LOGIN_SUCCESS", {
       userId: user._id.toString(),
       email,
@@ -337,6 +341,7 @@ class AuthService {
     return {
       accessToken,
       refreshToken,
+      passwordExpired,
       user: {
         id: user._id.toString(),
         firstName: user.firstName,
@@ -352,9 +357,7 @@ class AuthService {
 
   // ── FORGOT PASSWORD ───────────────────────────────────
   async forgotPassword(input: ForgotPasswordInput) {
-    const user = await userRepository.findByEmail(
-      input.email
-    );
+    const user = await userRepository.findByEmail(input.email);
 
     if (!user) {
       return {
@@ -386,18 +389,14 @@ class AuthService {
   async resetPassword(input: ResetPasswordInput) {
     const { email, otp, newPassword } = input;
 
-    const user =
-      await userRepository.findByEmailWithOtp(email);
+    const user = await userRepository.findByEmailWithOtp(email);
     if (!user) throw new NotFoundError("User not found");
 
     if (user.otp !== otp) {
       throw new BadRequestError("Invalid OTP");
     }
 
-    if (
-      !user.otpExpires ||
-      user.otpExpires < new Date()
-    ) {
+    if (!user.otpExpires || user.otpExpires < new Date()) {
       throw new BadRequestError(
         "OTP expired. Please request a new one."
       );
@@ -425,6 +424,7 @@ class AuthService {
       password: hashed,
       otp: undefined,
       otpExpires: undefined,
+      passwordChangedAt: new Date(),
     });
 
     await userRepository.addToPasswordHistory(
@@ -441,9 +441,7 @@ class AuthService {
     if (!user) throw new NotFoundError("User not found");
 
     if (user.isVerified) {
-      throw new BadRequestError(
-        "Email is already verified"
-      );
+      throw new BadRequestError("Email is already verified");
     }
 
     const { otp, otpExpires } = generateOtp();
@@ -469,13 +467,9 @@ class AuthService {
     if (!user) throw new NotFoundError("User not found");
 
     const updated = await userRepository.update(userId, {
-      ...(input.firstName && {
-        firstName: input.firstName,
-      }),
+      ...(input.firstName && { firstName: input.firstName }),
       ...(input.lastName && { lastName: input.lastName }),
-      ...(input.phone !== undefined && {
-        phone: input.phone,
-      }),
+      ...(input.phone !== undefined && { phone: input.phone }),
       ...(input.nationality !== undefined && {
         nationality: input.nationality,
       }),
@@ -491,7 +485,6 @@ class AuthService {
   async logout(userId: string) {
     await userRepository.clearRefreshToken(userId);
 
-    // ── Log logout event ──────────────────────────────
     logAuth("LOGOUT", {
       userId,
       success: true,
