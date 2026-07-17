@@ -13,6 +13,7 @@ import {
   errorHandler,
   notFound,
 } from "./middlewares/error.middleware";
+import { csrfErrorHandler } from "./middlewares/csrf.middleware";
 import { ENV } from "./config/env";
 
 const app: Application = express();
@@ -39,7 +40,8 @@ app.use(
     legacyHeaders: false,
     message: {
       success: false,
-      message: "Too many requests. Try again after 15 minutes.",
+      message:
+        "Too many requests. Try again after 15 minutes.",
     },
   })
 );
@@ -85,6 +87,9 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/v1", routes);
+
+// ── CSRF error handler ────────────────────────────────
+app.use(csrfErrorHandler);
 
 app.use(notFound);
 app.use(errorHandler);
