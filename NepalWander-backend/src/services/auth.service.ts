@@ -238,7 +238,7 @@ class AuthService {
 
     if (!isMatch) {
       const attempts = (user.failedLoginAttempts || 0) + 1;
-      const MAX_ATTEMPTS = 5;
+      const MAX_ATTEMPTS = 10;
       const LOCK_DURATION_MS = 30 * 60 * 1000;
 
       if (attempts >= MAX_ATTEMPTS) {
