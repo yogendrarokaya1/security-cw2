@@ -6,6 +6,8 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
+import session from "express-session";
+import passport from "./config/passport";
 import routes from "./routes";
 import {
   errorHandler,
@@ -31,7 +33,7 @@ app.use(
 // ── Global rate limit (all routes) ───────────────────
 app.use(
   rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
@@ -49,6 +51,25 @@ app.use(cookieParser());
 
 // ── NoSQL injection sanitization ──────────────────────
 app.use(mongoSanitize());
+
+// ── Session (required for passport OAuth) ────────────
+app.use(
+  session({
+    secret: ENV.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: ENV.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
+
+// ── Passport OAuth ────────────────────────────────────
+app.use(passport.initialize());
+app.use(passport.session());
 
 // ── HTTP request logging ──────────────────────────────
 if (ENV.NODE_ENV !== "test") {
